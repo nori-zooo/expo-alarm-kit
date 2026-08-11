@@ -13,50 +13,10 @@ export interface ScheduleAlarmOptions {
   title: string;
   soundName?: string | null;
   launchAppOnDismiss?: boolean;
-  doSnoozeIntent?: boolean;
-  launchAppOnSnooze?: boolean;
   dismissPayload?: string | null;
-  snoozePayload?: string | null;
   stopButtonLabel?: string | null;
-  snoozeButtonLabel?: string | null;
   stopButtonColor?: string | null;
-  snoozeButtonColor?: string | null;
   tintColor?: string | null;
-  snoozeDuration?: number | null;
-}
-
-export interface ScheduleRepeatingAlarmOptions {
-  id: string;
-  hour: number;
-  minute: number;
-  weekdays: number[];
-  title: string;
-  soundName?: string | null;
-  launchAppOnDismiss?: boolean;
-  doSnoozeIntent?: boolean;
-  launchAppOnSnooze?: boolean;
-  dismissPayload?: string | null;
-  snoozePayload?: string | null;
-  stopButtonLabel?: string | null;
-  snoozeButtonLabel?: string | null;
-  stopButtonColor?: string | null;
-  snoozeButtonColor?: string | null;
-  tintColor?: string | null;
-  snoozeDuration?: number | null;
-}
-
-export interface ScheduleTimerOptions {
-  id: string;
-  duration: number;
-  title: string;
-  soundName?: string | null;
-  tintColor?: string | null;
-  pauseButtonLabel?: string | null;
-  pauseButtonColor?: string | null;
-  resumeButtonLabel?: string | null;
-  resumeButtonColor?: string | null;
-  launchAppOnDismiss?: boolean;
-  dismissPayload?: string | null;
 }
 
 interface ExpoAlarmKitModuleType {
@@ -88,25 +48,20 @@ interface ExpoAlarmKitModuleType {
   scheduleAlarm(options: ScheduleAlarmOptions): Promise<boolean>;
 
   /**
-   * Schedule a weekly repeating alarm.
-   * @param options - Alarm configuration options.
-   * @returns True if scheduling succeeded.
-   */
-  scheduleRepeatingAlarm(options: ScheduleRepeatingAlarmOptions): Promise<boolean>;
-
-  /**
-   * Schedule a timer-based alarm.
-   * @param options - Timer alarm configuration options. Duration must be at least 60 seconds.
-   * @returns True if scheduling succeeded.
-   */
-  scheduleTimerAlarm(options: ScheduleTimerOptions): Promise<boolean>;
-
-  /**
    * Cancel a scheduled alarm.
    * @param id - The alarm ID to cancel.
    * @returns True if cancellation succeeded.
    */
   cancelAlarm(id: string): Promise<boolean>;
+
+  /**
+   * Stop alarms that are currently ringing (state == .alerting).
+   * Reads the OS state directly, so it can also stop rings whose IDs the app can no longer
+   * resolve (orphaned schedules) or whose alert UI was destroyed without the stop button.
+   * Scheduled (not yet fired) alarms are left untouched.
+   * @returns The number of alarms stopped.
+   */
+  stopAlertingAlarms(): Promise<number>;
 
   /**
    * Get all currently scheduled alarm IDs.
@@ -127,7 +82,7 @@ interface ExpoAlarmKitModuleType {
   clearAllAlarms(): void;
 
   /**
-   * Get the launch payload if the app was opened from an alarm dismiss/snooze intent.
+   * Get the launch payload if the app was opened from an alarm dismiss intent.
    * The payload is cleared after retrieval.
    * @returns The launch payload or null if not launched from an alarm.
    */

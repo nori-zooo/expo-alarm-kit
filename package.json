@@ -26,13 +26,13 @@
     "alarm-kit",
     "native-alarm"
   ],
-  "repository": "https://github.com/nickdeupree/expo-alarm-kit",
+  "repository": "https://github.com/nori-zooo/expo-alarm-kit",
   "bugs": {
-    "url": "https://github.com/nickdeupree/expo-alarm-kit/issues"
+    "url": "https://github.com/nori-zooo/expo-alarm-kit/issues"
   },
   "author": "Nick Deupree <nicholasdeupree@gmail.com> (https://github.com/nickdeupree)",
   "license": "MIT",
-  "homepage": "https://github.com/nickdeupree/expo-alarm-kit#readme",
+  "homepage": "https://github.com/nori-zooo/expo-alarm-kit#readme",
   "dependencies": {},
   "devDependencies": {
     "@types/react": "~19.1.0",

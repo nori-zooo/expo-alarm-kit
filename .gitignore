@@ -8,7 +8,12 @@ jsconfig.json
 
 # Xcode
 #
-build/
+# NOTE (fork): ルートの build/ は TypeScript のビルド成果物で、package.json の main が指す。
+# 本 fork は npm ではなく GitHub 参照で使うため、成果物をコミットする必要がある
+# （git 依存の prepare 実行に頼ると EAS のクラウドビルドで失敗しうる）。
+# よって Xcode の build/ 無視はパスを限定する。
+ios/build/
+example/ios/build/
 *.pbxuser
 !default.pbxuser
 *.mode1v3

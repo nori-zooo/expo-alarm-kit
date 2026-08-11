@@ -1,9 +1,25 @@
-# expo-alarm-kit
+# expo-alarm-kit（あんしんプラットフォーム fork）
 
-An Expo module for iOS AlarmKit integration. Schedule native iOS alarms with optional app launch on dismissal or snooze intents.
+> **これは [nickdeupree/expo-alarm-kit](https://github.com/nickdeupree/expo-alarm-kit) の fork です（MIT）。**
+> 「はじまりの刻」（あんしんプラットフォーム）専用に、使う機能だけを残して整理してあります。
+> 上流へ追従する予定はありません。変更の経緯は anshin-platform の issue #262 を参照。
+>
+> ### 上流からの主な変更
+>
+> | 変更 | 理由 |
+> |---|---|
+> | **`countdownDuration` を渡さない** | 上流は snooze の有無に関わらず `postAlert: 9分` を無条件にハードコードしていた。その結果「とめる」を押さず放置すると、鳴動が OS に打ち切られたあと **9分ごとに無音の全画面アラートが繰り返される**（2026-08-11 実機確認） |
+> | **snooze を概念ごと削除** | 上流は `doSnoozeIntent=false` でも `secondaryIntent=nil` のまま snooze ボタンを表示し、「押しても何も起きない壊れたボタン」になっていた。本アプリは「とめる」1アクションが設計方針 |
+> | **`stop(id:)` を stopIntent で呼ぶ** | 上流の Dismiss 系 Intent は payload 保存しかせず `AlarmManager.shared.stop(id:)` を一度も呼んでいなかったため、「とめる」を押しても鳴り続けた |
+> | **`stopAlertingAlarms()` を追加** | `state == .alerting` の予約だけを stop する復旧口。ID を解決できなくなった孤児予約や、回転でアラート UI だけ破棄された鳴動を止められる。**JS 側（`src/index.ts`）にも export している** |
+> | **deployment target 26.1 → 16.4** | iOS<26 をサポートするアプリに導入できるようにする（AlarmKit を呼ぶ箇所は全て `@available` ガード済み。JS 側は iOS 26+ でのみ require する） |
+> | **`@available(iOS 26.0)` の un-gate + 関数内 guard** | 自動生成される `ExpoModulesProvider.swift` がモジュールを無条件参照するため、クラスごとゲートされているとビルドが通らない |
+> | **未使用機能の削除**（`scheduleRepeatingAlarm` / `scheduleTimerAlarm` / Snooze Intents / View / web 実装） | 一度も呼ばない機能が iOS・Swift の更新のたびにビルドエラーを起こしていた（上流の `scheduleTimerAlarm` は `stopButton` 欠落で iOS 26 SDK ではそもそもビルド不能） |
+
+An Expo module for iOS AlarmKit integration. Schedule native iOS alarms with optional app launch on dismissal.
 
 > **⚠️ Requirements:**
-> * **iOS Deployment Target:** 26.0+
+> * **iOS Deployment Target:** 16.4+（AlarmKit の機能は iOS 26.0+ でのみ動作。それ未満では各 API が早期 return する）
 > * **Expo SDK:** 50+
 > * **Framework:** Apple AlarmKit
 

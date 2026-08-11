@@ -9,14 +9,14 @@ export { AuthorizationStatus, LaunchPayload };
  * Configure the module with an App Group identifier.
  * This MUST be called before any other methods to enable shared storage
  * between your app and the alarm dismiss intent.
- * 
+ *
  * @param appGroupIdentifier - The App Group identifier (e.g., "group.com.yourapp.alarms")
  * @returns True if configuration succeeded.
- * 
+ *
  * @example
  * ```typescript
  * import { configure } from 'expo-alarm-kit';
- * 
+ *
  * // Call this early in your app initialization
  * const success = configure('group.com.yourcompany.yourapp');
  * if (!success) {
@@ -59,41 +59,33 @@ export interface ScheduleAlarmOptions {
   soundName?: string;
   /** Whether to launch the app when the alarm stop button is pressed. Defaults to false. */
   launchAppOnDismiss?: boolean;
-  /** Whether to run a custom snooze intent when the snooze button is pressed. Defaults to false. */
-  doSnoozeIntent?: boolean;
-  /** Whether to launch the app when the custom snooze intent runs. Defaults to false. */
-  launchAppOnSnooze?: boolean;
   /** Optional payload string returned by getLaunchPayload when dismissed. Defaults to null. */
   dismissPayload?: string;
-  /** Optional payload string returned by getLaunchPayload when snoozed. Defaults to null. */
-  snoozePayload?: string;
   /** Custom label for the stop button (default: 'Stop') */
   stopButtonLabel?: string;
-  /** Custom label for the snooze button (default: 'Snooze') */
-  snoozeButtonLabel?: string;
   /** Hex color for the stop button text (default: '#FFFFFF') */
   stopButtonColor?: string;
-  /** Hex color for the snooze button text (default: '#FFFFFF') */
-  snoozeButtonColor?: string;
   /** Hex color for the overall alarm tint (default: '#0000FF') */
   tintColor?: string;
-  /** Snooze duration in seconds (default: 540 = 9 minutes) */
-  snoozeDuration?: number;
 }
 
 /**
  * Schedule a one-time alarm.
+ *
+ * The alert presents a single "stop" button. This fork intentionally has no snooze:
+ * no secondary button, and no `countdownDuration` (see ios/ExpoAlarmKitModule.swift).
+ *
  * @param options - Alarm configuration options. Provide either epochSeconds or date.
  * @returns True if the alarm was scheduled successfully.
  */
 export async function scheduleAlarm(options: ScheduleAlarmOptions): Promise<boolean> {
   // Convert Date to epochSeconds if provided
   let epochSeconds: number;
-  
+
   if (options.date !== undefined && options.epochSeconds !== undefined) {
     throw new Error('Provide either epochSeconds or date, not both');
   }
-  
+
   if (options.date !== undefined) {
     epochSeconds = Math.floor(options.date.getTime() / 1000);
   } else if (options.epochSeconds !== undefined) {
@@ -101,95 +93,12 @@ export async function scheduleAlarm(options: ScheduleAlarmOptions): Promise<bool
   } else {
     throw new Error('Must provide either epochSeconds or date');
   }
-  
+
   // Pass to native module with epochSeconds
   return ExpoAlarmKitModule.scheduleAlarm({
     ...options,
     epochSeconds,
   });
-}
-
-export interface ScheduleRepeatingAlarmOptions {
-  /** Unique identifier for the alarm */
-  id: string;
-  /** Hour (0-23) for the alarm */
-  hour: number;
-  /** Minute (0-59) for the alarm */
-  minute: number;
-  /** Array of weekday numbers: 1=Sunday, 2=Monday, 3=Tuesday, 4=Wednesday, 5=Thursday, 6=Friday, 7=Saturday */
-  weekdays: number[];
-  /** Title displayed for the alarm */
-  title: string;
-  /** Optional custom sound name (must exist in app bundle) */
-  soundName?: string;
-  /** Whether to launch the app when the alarm stop button is pressed. Defaults to false. */
-  launchAppOnDismiss?: boolean;
-  /** Whether to run a custom snooze intent when the snooze button is pressed. Defaults to false. */
-  doSnoozeIntent?: boolean;
-  /** Whether to launch the app when the custom snooze intent runs. Defaults to false. */
-  launchAppOnSnooze?: boolean;
-  /** Optional payload string returned by getLaunchPayload when dismissed. Defaults to null. */
-  dismissPayload?: string;
-  /** Optional payload string returned by getLaunchPayload when snoozed. Defaults to null. */
-  snoozePayload?: string;
-  /** Custom label for the stop button (default: 'Stop') */
-  stopButtonLabel?: string;
-  /** Custom label for the snooze button (default: 'Snooze') */
-  snoozeButtonLabel?: string;
-  /** Hex color for the stop button text (default: '#FFFFFF') */
-  stopButtonColor?: string;
-  /** Hex color for the snooze button text (default: '#FFFFFF') */
-  snoozeButtonColor?: string;
-  /** Hex color for the overall alarm tint (default: '#0000FF') */
-  tintColor?: string;
-  /** Snooze duration in seconds (default: 540 = 9 minutes) */
-  snoozeDuration?: number;
-}
-
-/**
- * Schedule a weekly repeating alarm.
- * @param options - Alarm configuration options.
- * @returns True if the alarm was scheduled successfully.
- */
-export async function scheduleRepeatingAlarm(options: ScheduleRepeatingAlarmOptions): Promise<boolean> {
-  return ExpoAlarmKitModule.scheduleRepeatingAlarm(options);
-}
-
-export interface ScheduleTimerOptions {
-  /** Unique identifier for the timer alarm */
-  id: string;
-  /** Duration in seconds (minimum 60 seconds) */
-  duration: number;
-  /** Title displayed for the alarm when it fires */
-  title: string;
-  /** Optional custom sound name (must exist in app bundle) */
-  soundName?: string;
-  /** Hex color for the overall alarm tint (default: '#0000FF') */
-  tintColor?: string;
-  /** Custom label for the pause button (default: 'Pause') */
-  pauseButtonLabel?: string;
-  /** Hex color for the pause button text (default: '#0000FF') */
-  pauseButtonColor?: string;
-  /** Custom label for the resume button (default: 'Resume') */
-  resumeButtonLabel?: string;
-  /** Hex color for the resume button text (default: '#0000FF') */
-  resumeButtonColor?: string;
-  /** Whether to launch the app when the alarm stop button is pressed. Defaults to false. */
-  launchAppOnDismiss?: boolean;
-  /** Optional payload string returned by getLaunchPayload when dismissed. Defaults to null. */
-  dismissPayload?: string;
-}
-
-/**
- * Schedule a timer-based alarm.
- * @param options - Timer alarm configuration options. Duration must be at least 60 seconds.
- * @returns True if the alarm was scheduled successfully.
- */
-export async function scheduleTimerAlarm(options: ScheduleTimerOptions): Promise<boolean> {
-  if (options.duration < 60) {
-    throw new Error('Timer duration must be at least 60 seconds');
-  }
-  return ExpoAlarmKitModule.scheduleTimerAlarm(options);
 }
 
 /**
@@ -200,6 +109,21 @@ export async function scheduleTimerAlarm(options: ScheduleTimerOptions): Promise
  */
 export async function cancelAlarm(id: string): Promise<boolean> {
   return ExpoAlarmKitModule.cancelAlarm(id);
+}
+
+/**
+ * Stop alarms that are currently ringing (state == .alerting).
+ *
+ * AlarmKit owns the ringing; the only ways to stop it are the stop button's intent or
+ * `AlarmManager.stop(id:)`. This reads the OS state directly, so it also recovers rings
+ * whose IDs the app can no longer resolve (orphaned schedules) and rings whose alert UI
+ * was destroyed without going through the stop button (e.g. device rotation).
+ * Scheduled (not yet fired) alarms are left untouched.
+ *
+ * @returns The number of alarms stopped.
+ */
+export async function stopAlertingAlarms(): Promise<number> {
+  return ExpoAlarmKitModule.stopAlertingAlarms();
 }
 
 /**
@@ -224,7 +148,7 @@ export function removeAlarm(id: string): void {
 }
 
 /**
- * Get the launch payload if the app was opened from an alarm dismiss/snooze intent.
+ * Get the launch payload if the app was opened from an alarm dismiss intent.
  * The payload contains the alarmId and payload string (or null if not provided).
  * Note: The payload is cleared after retrieval, so subsequent calls will return null.
  * @returns The launch payload or null if not launched from an alarm.
@@ -239,9 +163,8 @@ const ExpoAlarmKit = {
   requestAuthorization,
   generateUUID,
   scheduleAlarm,
-  scheduleRepeatingAlarm,
-  scheduleTimerAlarm,
   cancelAlarm,
+  stopAlertingAlarms,
   getAllAlarms,
   clearAllAlarms,
   removeAlarm,
