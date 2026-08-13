@@ -367,7 +367,11 @@ public class ExpoAlarmKitModule: Module {
         AsyncFunction("stopAlertingAlarms") { () -> Int in
             guard #available(iOS 26.0, *) else { return 0 }
             var stopped = 0
-            for alarm in AlarmManager.shared.alarms where alarm.state == .alerting {
+            // AlarmManager.alarms は throwing プロパティ（SDK の swiftinterface は
+            // `public var alarms: [Alarm] { get throws }`）。読み取れないときは
+            // 「止めるものが無い」として 0 を返す（復旧口なので失敗しても致命的ではない）。
+            let currentAlarms = (try? AlarmManager.shared.alarms) ?? []
+            for alarm in currentAlarms where alarm.state == .alerting {
                 do {
                     try AlarmManager.shared.stop(id: alarm.id)
                     ExpoAlarmKitStorage.removeAlarm(id: alarm.id.uuidString)
