@@ -317,6 +317,7 @@ Schedules a timer-based alarm that fires after a specified duration.
 #### `cancelAlarm(id: string): Promise<boolean>`
 
 Cancels the alarm in AlarmKit and removes it from shared storage.
+An alarm already absent from AlarmKit is treated as successfully cancelled. If reading or cancelling the OS reservation fails, shared records are retained and the function returns `false`.
 
 #### `generateUUID(): string`
 
@@ -325,6 +326,7 @@ Helper to generate a unique ID string for new alarms.
 #### `getAllAlarms(): string[]`
 
 Returns an array of IDs for all currently scheduled alarms.
+The list comes from AlarmKit's current OS state. App Group records only preserve the original UUID spelling; they are not proof that an alarm still exists. An OS lookup failure throws instead of returning an empty list.
 
 #### `getLaunchPayload(): LaunchPayload | null`
 

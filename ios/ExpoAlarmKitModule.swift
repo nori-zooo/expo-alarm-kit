@@ -346,7 +346,10 @@ public class ExpoAlarmKitModule: Module {
             }
             
             do {
-                try AlarmManager.shared.cancel(id: uuid)
+                // OS側で既に消えた予約も取消完了とする。読取失敗時は記録を残す。
+                if try AlarmManager.shared.alarms.contains(where: { $0.id == uuid }) {
+                    try AlarmManager.shared.cancel(id: uuid)
+                }
                 // Clean up App Group storage
                 ExpoAlarmKitStorage.removeAlarm(id: id)
                 ExpoAlarmKitStorage.removeLaunchAppOnDismiss(alarmId: id)
@@ -385,8 +388,15 @@ public class ExpoAlarmKitModule: Module {
         }
 
         // MARK: - Get All Alarms
-        Function("getAllAlarms") { () -> [String] in
-            return ExpoAlarmKitStorage.getAllAlarmIds()
+        Function("getAllAlarms") { () throws -> [String] in
+            guard #available(iOS 26.0, *) else { return [] }
+            let alarms = try AlarmManager.shared.alarms
+            // App GroupはIDの表記を保持する補助記録。予約の有無はOSを正とする。
+            var storedIds: [UUID: String] = [:]
+            for id in ExpoAlarmKitStorage.getAllAlarmIds() {
+                if let uuid = UUID(uuidString: id) { storedIds[uuid] = id }
+            }
+            return alarms.map { storedIds[$0.id] ?? $0.id.uuidString.lowercased() }
         }
 
         
