@@ -127,7 +127,10 @@ public struct AlarmDismissIntent: LiveActivityIntent {
         // （Apple の AlarmKit サンプルも stopIntent 内で stop(id:) を呼ぶ）。0.1.11 はここで
         // payload 保存と App Group 掃除しかしておらず、「とめる」を押しても鳴り続けた。
         if let uuid = UUID(uuidString: self.alarmId) {
-            try? AlarmManager.shared.stop(id: uuid)
+            do {
+                try AlarmManager.shared.stop(id: uuid)
+                await AlarmStopSignal.record(alarmId: self.alarmId)
+            } catch { NSLog("[alarm] Stop failed; signal not recorded") }
         }
 
         // Store payload for JS to retrieve
@@ -165,7 +168,10 @@ public struct AlarmDismissIntentWithLaunch: LiveActivityIntent {
         // anshin-platform patch (#244): 上の AlarmDismissIntent と同じ理由で、まず鳴動を止める。
         // launchAppOnDismiss=true（はじまりの刻が使う経路）はこちらが呼ばれる。
         if let uuid = UUID(uuidString: self.alarmId) {
-            try? AlarmManager.shared.stop(id: uuid)
+            do {
+                try AlarmManager.shared.stop(id: uuid)
+                await AlarmStopSignal.record(alarmId: self.alarmId)
+            } catch { NSLog("[alarm] Stop failed; signal not recorded") }
         }
 
         // Store payload for JS to retrieve

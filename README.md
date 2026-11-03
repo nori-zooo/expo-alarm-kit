@@ -349,3 +349,8 @@ interface LaunchPayload {
 ## Known Issues
 
 * **Custom Labels/Colors:** The `stopButtonLabel`, `stopButtonColor` properties are not correctly modifying the stop button/slider.
+
+
+## はじまりの停止シグナル（#406）
+
+`AlarmStopSignal.swift` は anshin-platform の `apps/hajimari/modules/hajimari-alarm-sync/ios/Shared/AlarmStopSignal.swift` を canonical として `/bin/cp` で同期する。停止Intentからのみ呼び、停止API成功後の操作時刻を保存・送信する。確認APIは呼ばない。アプリ本体/NSEと同じ App Group / Keychain の設定を使用し、未送信分の再送はアプリ本体が担当する。変更時は内容一致・実SDK型検査・操作記録の永続化テストを確認する。

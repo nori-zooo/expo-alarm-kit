@@ -33,5 +33,5 @@ Pod::Spec.new do |s|
 
   # Only include the module implementation files
   # （View は削除済み。本 fork はアラームの予約・停止だけを担い UI コンポーネントを持たない）
-  s.source_files = "ExpoAlarmKitModule.swift"
+  s.source_files = "ExpoAlarmKitModule.swift", "AlarmStopSignal.swift"
 end
