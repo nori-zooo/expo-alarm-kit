@@ -129,8 +129,8 @@ public struct AlarmDismissIntent: LiveActivityIntent {
         if let uuid = UUID(uuidString: self.alarmId) {
             do {
                 try AlarmManager.shared.stop(id: uuid)
-                await AlarmStopSignal.record(alarmId: self.alarmId)
-            } catch { NSLog("[alarm] Stop failed; signal not recorded") }
+            } catch { NSLog("[alarm] Explicit stop failed") }
+            await AlarmStopSignal.record(alarmId: self.alarmId)
         }
 
         // Store payload for JS to retrieve
@@ -149,7 +149,7 @@ public struct AlarmDismissIntent: LiveActivityIntent {
 public struct AlarmDismissIntentWithLaunch: LiveActivityIntent {
     public static var title: LocalizedStringResource = "Dismiss Alarm"
     public static var description = IntentDescription("Handles alarm dismissal and opens app")
-    public static var openAppWhenRun: Bool = true
+    public static var supportedModes: IntentModes = [.background, .foreground(.deferred)]
     
     @Parameter(title: "alarmId")
     public var alarmId: String
@@ -170,8 +170,8 @@ public struct AlarmDismissIntentWithLaunch: LiveActivityIntent {
         if let uuid = UUID(uuidString: self.alarmId) {
             do {
                 try AlarmManager.shared.stop(id: uuid)
-                await AlarmStopSignal.record(alarmId: self.alarmId)
-            } catch { NSLog("[alarm] Stop failed; signal not recorded") }
+            } catch { NSLog("[alarm] Explicit stop failed") }
+            await AlarmStopSignal.record(alarmId: self.alarmId)
         }
 
         // Store payload for JS to retrieve
@@ -309,7 +309,7 @@ public class ExpoAlarmKitModule: Module {
             }
             
             // Choose the appropriate intent based on launchAppOnDismiss
-            // AlarmDismissIntentWithLaunch sets openAppWhenRun=true, AlarmDismissIntent sets it to false
+            // The launch intent starts in the background and then requests the foreground.
             let stopIntent: any LiveActivityIntent = launchAppOnDismiss
                 ? AlarmDismissIntentWithLaunch(alarmId: options.id, payload: options.dismissPayload)
                 : AlarmDismissIntent(alarmId: options.id, payload: options.dismissPayload)
