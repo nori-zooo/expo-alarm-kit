@@ -76,24 +76,61 @@ public enum AlarmStopSignal {
         }
         return AlarmStopEventStore(root: root.appendingPathComponent("Library/Application Support/AlarmStop-v1"))
     }
+    /// Diagnostic output is intentionally limited to phase/result, OS status, HTTP status,
+    /// and a production/staging/other destination label. Never log credentials or payloads.
+    private static func logError(_ phase: String, _ error: Error) {
+        let value = error as NSError
+        NSLog("[alarm-stop] phase=\(phase) outcome=error domain=\(value.domain) code=\(value.code)")
+    }
     /// 停止Intentだけが呼ぶ。保存失敗/通信失敗が鳴動停止や画面遷移を妨げない。
     public static func record(alarmId: String) async {
+        NSLog("[alarm-stop] phase=signal.record outcome=started signal=alarm_stopped")
+        let eventStore: AlarmStopEventStore
+        do { eventStore = try store() }
+        catch { logError("event_store.open", error); return }
+
+        let event: AlarmStopEvent
         do {
-            let store = try store()
-            let event = try store.record(alarmId: alarmId)
-            try await send(event, store: store)
-        } catch { NSLog("[alarm] Stop signal pending or unavailable") }
+            event = try eventStore.record(alarmId: alarmId)
+            NSLog("[alarm-stop] phase=event.persist outcome=success")
+        } catch { logError("event.persist", error); return }
+
+        do {
+            try await send(event, store: eventStore)
+            NSLog("[alarm-stop] phase=signal.record outcome=acknowledged")
+        } catch {
+            logError("signal.send", error)
+            NSLog("[alarm-stop] phase=event.persist outcome=retained")
+        }
     }
     /// 起動・前面復帰で再送する。送信成功したイベントだけ端末から消す。
     public static func retryPending() async {
-        do {
-            let store = try store()
-            for event in try store.pending().prefix(8) { try await send(event, store: store) }
-        } catch { NSLog("[alarm] Stop signal retry deferred") }
+        NSLog("[alarm-stop] phase=retry.start outcome=started")
+        let eventStore: AlarmStopEventStore
+        do { eventStore = try store() }
+        catch { logError("retry.event_store.open", error); return }
+
+        let events: [AlarmStopEvent]
+        do { events = try eventStore.pending() }
+        catch { logError("retry.queue.read", error); return }
+        NSLog("[alarm-stop] phase=retry.queue pending_count=\(events.count)")
+
+        for event in events.prefix(8) {
+            do {
+                try await send(event, store: eventStore)
+                NSLog("[alarm-stop] phase=retry.send outcome=acknowledged")
+            } catch {
+                logError("retry.send", error)
+                return
+            }
+        }
     }
     private static func credentials() throws -> Credentials {
         guard let group = Bundle.main.object(forInfoDictionaryKey: "HajimariAlarmKeychainGroup") as? String,
-              !group.contains("$(") else { throw CocoaError(.coderInvalidValue) }
+              !group.contains("$(") else {
+            NSLog("[alarm-stop] phase=credentials.config outcome=invalid_keychain_group")
+            throw CocoaError(.coderInvalidValue)
+        }
         let key = Data("credentials".utf8)
         let context = LAContext(); context.interactionNotAllowed = true
         let query: [String: Any] = [
@@ -105,16 +142,35 @@ public enum AlarmStopSignal {
             kSecUseAuthenticationContext as String: context,
         ]
         var result: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
-              let data = result as? Data else { throw CocoaError(.fileReadNoPermission) }
-        let value = try JSONDecoder().decode(Credentials.self, from: data)
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        guard status == errSecSuccess else {
+            NSLog("[alarm-stop] phase=credentials.keychain outcome=error os_status=\(status)")
+            throw CocoaError(.fileReadNoPermission)
+        }
+        guard let data = result as? Data else {
+            NSLog("[alarm-stop] phase=credentials.keychain outcome=error result=invalid_data")
+            throw CocoaError(.fileReadNoPermission)
+        }
+        let value: Credentials
+        do { value = try JSONDecoder().decode(Credentials.self, from: data) }
+        catch { logError("credentials.decode", error); throw error }
         guard !value.deviceToken.isEmpty, !value.anonKey.isEmpty,
               let url = URLComponents(string: value.functionsURL), url.scheme == "https", url.host != nil,
               url.user == nil, url.password == nil, url.query == nil, url.fragment == nil,
               url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/")) == "functions/v1" else {
+            NSLog("[alarm-stop] phase=credentials.validate outcome=invalid")
             throw CocoaError(.coderInvalidValue)
         }
+        NSLog("[alarm-stop] phase=credentials.keychain outcome=success")
         return value
+    }
+    private static func targetEnvironment(_ functionsURL: String) -> String {
+        guard let host = URLComponents(string: functionsURL)?.host?.lowercased() else { return "invalid" }
+        switch host {
+        case "sujflccmacbrblfdnnto.supabase.co": return "production"
+        case "gtpwdfogxolrgungcyk.supabase.co": return "staging"
+        default: return "other"
+        }
     }
     private static func send(_ event: AlarmStopEvent, store: AlarmStopEventStore) async throws {
         let credentials = try credentials()
@@ -122,19 +178,38 @@ public enum AlarmStopSignal {
         config.timeoutIntervalForRequest = 3; config.timeoutIntervalForResource = 3
         let session = URLSession(configuration: config, delegate: AlarmStopRedirectPolicy(), delegateQueue: nil)
         defer { session.invalidateAndCancel() }
-        var request = URLRequest(url: URL(string: credentials.functionsURL)!.appendingPathComponent("record-activity-signal"))
+        guard let baseURL = URL(string: credentials.functionsURL) else {
+            NSLog("[alarm-stop] phase=http.request outcome=error reason=invalid_functions_url")
+            throw URLError(.badURL)
+        }
+        var request = URLRequest(url: baseURL.appendingPathComponent("record-activity-signal"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(credentials.anonKey, forHTTPHeaderField: "apikey")
-        request.httpBody = try JSONSerialization.data(withJSONObject: [
-            "device_token": credentials.deviceToken, "signal_type": "alarm_stopped",
-            "event_id": event.id, "occurred_at": ISO8601DateFormatter().string(from: event.occurredAt),
-        ])
-        let (_, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: [
+                "device_token": credentials.deviceToken, "signal_type": "alarm_stopped",
+                "event_id": event.id, "occurred_at": ISO8601DateFormatter().string(from: event.occurredAt),
+            ])
+        } catch { logError("http.request.encode", error); throw error }
+
+        NSLog("[alarm-stop] phase=http.request outcome=started method=POST endpoint=record-activity-signal target=\(targetEnvironment(credentials.functionsURL))")
+        let response: URLResponse
+        do {
+            let result = try await session.data(for: request)
+            response = result.1
+        } catch { logError("http.transport", error); throw error }
+        guard let http = response as? HTTPURLResponse else {
+            NSLog("[alarm-stop] phase=http.response outcome=error reason=invalid_response")
             throw URLError(.badServerResponse)
         }
-        try store.acknowledge(event)
+        NSLog("[alarm-stop] phase=http.response status=\(http.statusCode)")
+        guard (200..<300).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        do { try store.acknowledge(event) }
+        catch { logError("event.acknowledge", error); throw error }
+        NSLog("[alarm-stop] phase=event.acknowledge outcome=success")
     }
 }
 private final class AlarmStopRedirectPolicy: NSObject, URLSessionTaskDelegate {
